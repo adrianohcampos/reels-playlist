@@ -6,25 +6,49 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /playlists/{code}/items/{itemId} {
-      function validCode() { return code.size() >= 24; }
+    match /playlists/{code} {
+      function ok() { return code.size() >= 24; }
 
-      allow read, delete: if validCode();
+      // Reels salvos
+      match /items/{itemId} {
+        allow read, delete: if ok();
 
-      allow create: if validCode()
-        && request.resource.data.keys().hasOnly(['url', 'shortcode', 'addedAt', 'watched', 'source', 'title'])
-        && request.resource.data.shortcode == itemId
-        && request.resource.data.url == 'https://www.instagram.com/reel/' + itemId + '/'
-        && request.resource.data.watched is bool
-        && request.resource.data.addedAt is timestamp;
+        allow create: if ok()
+          && request.resource.data.keys().hasOnly(['url', 'shortcode', 'addedAt', 'watched', 'source', 'title', 'favorite'])
+          && request.resource.data.shortcode == itemId
+          && request.resource.data.url == 'https://www.instagram.com/reel/' + itemId + '/'
+          && request.resource.data.watched is bool
+          && request.resource.data.addedAt is timestamp;
 
-      // A TV só pode marcar como assistido / preencher o título
-      allow update: if validCode()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['watched', 'title']);
+        // Só dá pra marcar visto/favorito ou preencher o título
+        allow update: if ok()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['watched', 'title', 'favorite']);
+      }
+
+      // Capas (thumbnails) pequenas em JPEG/base64, geradas pela TV ou pela extensão
+      match /thumbs/{sc} {
+        allow read, delete: if ok();
+        allow create, update: if ok()
+          && request.resource.data.keys().hasOnly(['jpg', 'source'])
+          && request.resource.data.jpg is string
+          && request.resource.data.jpg.size() < 120000;
+      }
+
+      // Aparelhos conectados (TV, celular, Chrome)
+      match /devices/{dev} {
+        allow read, delete: if ok();
+        allow create, update: if ok()
+          && dev.size() >= 16 && dev.size() <= 40
+          && request.resource.data.keys().hasOnly(['name', 'type', 'pairedAt', 'lastSeen', 'revoked'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 60
+          && request.resource.data.type in ['tv', 'celular', 'desktop', 'navegador']
+          && request.resource.data.revoked is bool;
+      }
     }
 
-    // Pareamento da TV: a extensão grava pairing/{PIN de 8 letras} com o código da playlist,
-    // a TV lê (precisa saber o PIN exato, não dá pra listar) e apaga logo em seguida.
+    // Pareamento: quem já está conectado grava pairing/{PIN de 8 letras} com o código da playlist.
+    // O aparelho novo lê (precisa saber o PIN exato, não dá pra listar) e apaga logo em seguida.
     match /pairing/{pin} {
       allow get, delete: if pin.size() == 8;
       allow create: if pin.size() == 8

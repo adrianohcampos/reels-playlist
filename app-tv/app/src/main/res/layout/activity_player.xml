@@ -1,23 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Player na horizontal (TV, tablet ou celular deitado): vídeo vertical ao centro e ações ao lado, como o Shorts -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/player"
+    <LinearLayout
+        android:id="@+id/stage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:focusable="false" />
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp">
+
+        <!-- Espaço à esquerda com o mesmo tamanho da coluna de ações, para o vídeo ficar centralizado -->
+        <View
+            android:id="@+id/leftSpacer"
+            android:layout_width="96dp"
+            android:layout_height="1dp" />
+
+        <FrameLayout
+            android:id="@+id/videoCard"
+            android:layout_width="300dp"
+            android:layout_height="match_parent"
+            android:background="@drawable/video_card_bg"
+            android:focusable="true"
+            android:focusableInTouchMode="false">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/player"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:focusable="false"
+                app:resize_mode="fit"
+                app:shutter_background_color="#000000"
+                app:surface_type="texture_view"
+                app:use_controller="false" />
+
+            <include layout="@layout/player_overlay" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/actions"
+            android:layout_width="96dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingBottom="12dp" />
+    </LinearLayout>
 
     <TextView
-        android:id="@+id/overlay"
+        android:id="@+id/hint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_margin="32dp"
-        android:background="#AA000000"
-        android:padding="14dp"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp" />
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="28dp"
+        android:background="@drawable/pill_bg"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:textSize="15sp"
+        android:visibility="gone" />
 </FrameLayout>

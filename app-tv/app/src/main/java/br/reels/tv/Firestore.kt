@@ -13,6 +13,7 @@ data class Item(
     val addedAt: String,
     val watched: Boolean,
     val title: String?,
+    val favorite: Boolean = false,
 )
 
 /** Cliente mínimo da API REST do Firestore (sem SDK, sem google-services.json). */
@@ -59,6 +60,7 @@ class Firestore(projectId: String, private val apiKey: String) {
                         addedAt = f.str("addedAt") ?: "",
                         watched = f.bool("watched"),
                         title = f.str("title"),
+                        favorite = f.bool("favorite"),
                     )
                 }
             }
@@ -72,6 +74,31 @@ class Firestore(projectId: String, private val apiKey: String) {
 
     fun setTitle(code: String, shortcode: String, title: String) =
         patch(code, shortcode, "title", JSONObject().put("stringValue", title))
+
+    fun setFavorite(code: String, shortcode: String, favorite: Boolean) =
+        patch(code, shortcode, "favorite", JSONObject().put("booleanValue", favorite))
+
+    // ---------- Capas (thumbnails) ----------
+
+    /** Capa em base64 (JPEG) ou null se ainda não existe. */
+    fun getThumb(code: String, shortcode: String): String? {
+        val body = call(Request.Builder().url("$root/playlists/$code/thumbs/$shortcode?key=$apiKey").build()) ?: return null
+        return JSONObject(body).optJSONObject("fields")?.str("jpg")
+    }
+
+    fun putThumb(code: String, shortcode: String, base64Jpg: String) {
+        val fields = JSONObject()
+            .put("jpg", JSONObject().put("stringValue", base64Jpg))
+            .put("source", JSONObject().put("stringValue", "tv"))
+        call(
+            Request.Builder().url("$root/playlists/$code/thumbs/$shortcode?key=$apiKey")
+                .patch(JSONObject().put("fields", fields).toString().toRequestBody(jsonType)).build()
+        )
+    }
+
+    fun deleteThumb(code: String, shortcode: String) {
+        runCatching { call(Request.Builder().url("$root/playlists/$code/thumbs/$shortcode?key=$apiKey").delete().build()) }
+    }
 
     private fun patch(code: String, shortcode: String, field: String, value: JSONObject) {
         val url = "$root/playlists/$code/items/$shortcode?key=$apiKey" +

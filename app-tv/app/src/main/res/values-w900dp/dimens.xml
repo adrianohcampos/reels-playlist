@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TV: margens de segurança (overscan) e cards maiores -->
+    <dimen name="screen_pad_h">48dp</dimen>
+    <dimen name="screen_pad_v">27dp</dimen>
+    <dimen name="card_target">170dp</dimen>
+    <dimen name="title_size">28sp</dimen>
+    <dimen name="action_size">58dp</dimen>
+</resources>

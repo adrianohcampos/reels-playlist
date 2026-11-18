@@ -84,12 +84,63 @@ export async function listRecent(limit = 5) {
     });
 }
 
+/**
+ * Captura a capa do Reel e grava em playlists/{code}/thumbs/{shortcode}.
+ * 1º tenta a imagem og:image da página do Reel; 2º o atalho /media/?size=m.
+ * Reduz para 240px de largura (JPEG ≈ 15 KB). Retorna true se gravou.
+ */
+export async function captureThumb(shortcode) {
+  const cfg = await getConfig();
+  if (!cfg || !shortcode) return false;
+  const tUrl = `${base(cfg)}/thumbs/${shortcode}?key=${cfg.apiKey}`;
+  try {
+    if ((await fetch(tUrl)).ok) return true; // já existe
+  } catch { return false; }
+
+  const candidates = [];
+  try {
+    const html = await (await fetch(`https://www.instagram.com/reel/${shortcode}/`, { credentials: "include" })).text();
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    if (m) candidates.push(m[1].replace(/&amp;/g, "&"));
+  } catch {}
+  candidates.push(`https://www.instagram.com/p/${shortcode}/media/?size=m`);
+
+  for (const url of candidates) {
+    try {
+      const r = await fetch(url, { credentials: "include" });
+      if (!r.ok || !(r.headers.get("content-type") || "").startsWith("image/")) continue;
+      const jpg = await shrinkToBase64(await r.blob());
+      const res = await fetch(tUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { jpg: { stringValue: jpg }, source: { stringValue: "extensao" } } }),
+      });
+      if (res.ok) return true;
+    } catch {}
+  }
+  return false;
+}
+
+async function shrinkToBase64(blob, width = 240) {
+  const bmp = await createImageBitmap(blob);
+  const w = Math.min(width, bmp.width);
+  const h = Math.round((bmp.height * w) / bmp.width);
+  const canvas = new OffscreenCanvas(w, h);
+  canvas.getContext("2d").drawImage(bmp, 0, 0, w, h);
+  const out = new Uint8Array(await (await canvas.convertToBlob({ type: "image/jpeg", quality: 0.72 })).arrayBuffer());
+  let s = "";
+  for (let i = 0; i < out.length; i += 0x8000) s += String.fromCharCode(...out.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 /** Remove um item da playlist. */
 export async function deleteReel(shortcode) {
   const cfg = await getConfig();
   if (!cfg) throw new Error("NOT_CONFIGURED");
   const res = await fetch(`${base(cfg)}/items/${shortcode}?key=${cfg.apiKey}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
+  fetch(`${base(cfg)}/thumbs/${shortcode}?key=${cfg.apiKey}`, { method: "DELETE" }).catch(() => {});
 }
 
 /**

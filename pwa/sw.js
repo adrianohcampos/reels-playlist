@@ -1,6 +1,6 @@
 // Service worker: deixa o app instalável e abrindo rápido.
 // Arquivos do app: rede primeiro, cache se estiver offline. Firestore: nunca entra no cache.
-const CACHE = "reels-playlist-v2";
+const CACHE = "reels-playlist-v3";
 const SHELL = ["./", "index.html", "app.js", "config.js", "manifest.webmanifest", "icons/192.png"];
 
 self.addEventListener("install", (e) => {

@@ -1,4 +1,4 @@
-import { saveReel, parseReel } from "./lib.js";
+import { saveReel, parseReel, captureThumb } from "./lib.js";
 
 const PATTERNS = [
   "*://*.instagram.com/reel/*",
@@ -32,6 +32,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   try {
     const r = await saveReel(url, "desktop");
     flash(tab?.id, r.status === "saved" ? "✓" : "=", "#16a34a");
+    captureThumb(r.shortcode).catch(() => {});
   } catch (e) {
     console.error(e);
     flash(tab?.id, "!", "#dc2626");
@@ -44,6 +45,11 @@ function flash(tabId, text, color) {
   chrome.action.setBadgeText({ ...opts, text });
   setTimeout(() => chrome.action.setBadgeText({ ...opts, text: "" }), 2500);
 }
+
+// O popup pede a captura da capa aqui, porque ele pode fechar antes de terminar
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === "captureThumb") captureThumb(msg.shortcode).catch(() => {});
+});
 
 // Exposto para testes manuais no console do service worker
 self.parseReel = parseReel;

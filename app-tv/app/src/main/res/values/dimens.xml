@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_pad_h">16dp</dimen>
+    <dimen name="screen_pad_v">12dp</dimen>
+    <dimen name="card_target">150dp</dimen>
+    <dimen name="title_size">22sp</dimen>
+    <dimen name="action_size">50dp</dimen>
+</resources>

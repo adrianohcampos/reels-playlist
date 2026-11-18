@@ -96,7 +96,7 @@ async function loadItems() {
   }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Erro ${r.status}`))));
   state.items = rows.filter((r) => r.document).map((r) => {
     const d = dec(r.document.fields);
-    return { shortcode: d.shortcode, url: d.url, title: d.title, watched: !!d.watched, addedAt: d.addedAt };
+    return { shortcode: d.shortcode, url: d.url, title: d.title, watched: !!d.watched, favorite: !!d.favorite, addedAt: d.addedAt };
   });
   renderList();
   renderWatchSummary();
@@ -126,6 +126,54 @@ async function saveReel(raw) {
   }
 }
 
+function setFavorite(sc, favorite) {
+  const it = byCode(sc);
+  if (it) it.favorite = favorite;
+  fsPatch(`${P()}/items/${sc}`, { favorite }, ["favorite"]).catch(() => {});
+}
+
+async function removeItem(sc) {
+  await fs(`${P()}/items/${sc}`, { method: "DELETE" }).catch(() => {});
+  fs(`${P()}/thumbs/${sc}`, { method: "DELETE" }).catch(() => {});
+  localStorage.removeItem("thumb:" + sc);
+  state.items = state.items.filter((x) => x.shortcode !== sc);
+}
+
+// ---------- Capas (thumbnails) ----------
+// 1) cache local · 2) capa salva no Firebase pela TV ou pela extensão · 3) atalho /media/ do Instagram
+
+const thumbPending = new Map();
+const thumbMissing = new Set();
+
+function fetchThumb(sc) {
+  const cached = localStorage.getItem("thumb:" + sc);
+  if (cached) return Promise.resolve("data:image/jpeg;base64," + cached);
+  if (thumbMissing.has(sc)) return Promise.resolve(null);
+  if (!thumbPending.has(sc)) {
+    thumbPending.set(sc, fs(`${P()}/thumbs/${sc}`).then((doc) => {
+      const jpg = doc && dec(doc.fields).jpg;
+      if (!jpg) { thumbMissing.add(sc); return null; }
+      try { localStorage.setItem("thumb:" + sc, jpg); } catch {}
+      return "data:image/jpeg;base64," + jpg;
+    }).catch(() => null).finally(() => thumbPending.delete(sc)));
+  }
+  return thumbPending.get(sc);
+}
+
+/** Cria um <img> que se preenche sozinho com a melhor capa disponível. */
+function thumbImg(sc, cls = "") {
+  const img = document.createElement("img");
+  img.className = cls;
+  img.alt = "";
+  img.loading = "lazy";
+  fetchThumb(sc).then((src) => {
+    if (src) { img.src = src; return; }
+    img.onerror = () => { img.onerror = null; img.removeAttribute("src"); img.classList.add("noimg"); };
+    img.src = `https://www.instagram.com/p/${sc}/media/?size=m`;
+  });
+  return img;
+}
+
 function setWatched(sc, watched) {
   const it = byCode(sc);
   if (it) it.watched = watched;
@@ -138,13 +186,21 @@ function renderList() {
   ul.innerHTML = items.length ? "" : '<li class="muted">Nada salvo ainda.</li>';
   for (const it of items) {
     const li = document.createElement("li");
+    const img = thumbImg(it.shortcode, "thumb");
+    img.style.cursor = "pointer";
+    img.onclick = () => openPlayer(it.shortcode);
     const box = document.createElement("div");
     box.className = "grow";
     const name = document.createElement("div");
     name.className = "name";
-    name.textContent = "▶ " + (it.title || it.shortcode);
+    name.textContent = it.title || it.shortcode;
     name.onclick = () => openPlayer(it.shortcode);
     box.append(name);
+    const fav = document.createElement("button");
+    fav.className = "fav" + (it.favorite ? " on" : "");
+    fav.textContent = it.favorite ? "♥" : "♡";
+    fav.title = "Favorito";
+    fav.onclick = () => { setFavorite(it.shortcode, !it.favorite); renderList(); renderWatchSummary(); };
     const tag = document.createElement("button");
     tag.className = "ghost small";
     tag.textContent = it.watched ? "✔ visto" : "novo";
@@ -156,12 +212,11 @@ function renderList() {
     del.title = "Remover";
     del.onclick = async () => {
       if (!confirm("Remover da playlist?")) return;
-      await fs(`${P()}/items/${it.shortcode}`, { method: "DELETE" }).catch(() => {});
-      state.items = state.items.filter((x) => x !== it);
+      await removeItem(it.shortcode);
       renderList();
       renderWatchSummary();
     };
-    li.append(box, tag, del);
+    li.append(img, box, fav, tag, del);
     ul.append(li);
   }
 }
@@ -187,16 +242,42 @@ let qi = 0;
 let viewBeforePlayer = "viewHome";
 
 function renderWatchSummary() {
-  const novos = state.items.filter((i) => !i.watched).length;
-  $("watchSummary").textContent = `${novos} novos · ${state.items.length} na playlist`;
-  $("btnWatchNew").disabled = novos === 0;
+  const novos = state.items.filter((i) => !i.watched);
+  const favs = state.items.filter((i) => i.favorite).length;
+  $("watchSummary").textContent = `${novos.length} novos · ${favs} favoritos · ${state.items.length} na playlist`;
+  $("btnWatchNew").disabled = novos.length === 0;
   $("btnWatchAll").disabled = state.items.length === 0;
+  $("btnWatchFav").disabled = favs === 0;
+
+  // Grade de capas: os novos primeiro, depois os vistos mais recentes
+  const grid = $("upNext");
+  const list = [...novos, ...state.items.filter((i) => i.watched).reverse()].slice(0, 24);
+  grid.innerHTML = list.length ? "" : '<p class="muted">Nada salvo ainda.</p>';
+  for (const it of list) {
+    const tile = document.createElement("button");
+    tile.className = "tile" + (it.watched ? " seen" : "");
+    tile.append(thumbImg(it.shortcode));
+    const cap = document.createElement("div");
+    cap.className = "cap";
+    cap.textContent = it.title || it.shortcode;
+    tile.append(cap);
+    if (it.favorite) {
+      const h = document.createElement("span");
+      h.className = "heart";
+      h.textContent = "♥";
+      tile.append(h);
+    }
+    tile.onclick = () => openPlayer(it.shortcode);
+    grid.append(tile);
+  }
 }
 
 function openPlayer(startSc = null, mode = null) {
   const start = startSc && byCode(startSc);
   mode = mode || (start?.watched ? "all" : "new");
-  const base = mode === "all" ? state.items : state.items.filter((i) => !i.watched || i.shortcode === startSc);
+  const base = mode === "all" ? state.items
+    : mode === "fav" ? state.items.filter((i) => i.favorite || i.shortcode === startSc)
+    : state.items.filter((i) => !i.watched || i.shortcode === startSc);
   queue = base.map((i) => i.shortcode);
   qi = Math.max(0, startSc ? queue.indexOf(startSc) : 0);
   if (!queue.length) return status("Nada novo para assistir 🎉", "ok");
@@ -213,7 +294,9 @@ function renderPlayer() {
   $("pTitle").textContent = it?.title || "";
   $("pOpen").href = `https://www.instagram.com/reel/${sc}/`;
   $("pPrev").disabled = qi === 0;
-  $("pNext").textContent = qi === queue.length - 1 ? "✓ Visto · Concluir" : "✓ Visto · Próximo ▶";
+  $("pFav").textContent = it?.favorite ? "♥" : "♡";
+  $("pFav").style.color = it?.favorite ? "var(--accent)" : "";
+  $("pNext").textContent = qi === queue.length - 1 ? "✓ Concluir" : "✓ Próximo ▶";
 }
 
 function playerNext() {
@@ -240,6 +323,22 @@ function closePlayer() {
 $("pNext").onclick = playerNext;
 $("pPrev").onclick = playerPrev;
 $("pClose").onclick = closePlayer;
+$("pFav").onclick = () => {
+  const sc = queue[qi];
+  setFavorite(sc, !byCode(sc)?.favorite);
+  renderPlayer();
+};
+$("pDel").onclick = async () => {
+  const sc = queue[qi];
+  if (!confirm("Remover este Reel da playlist? Ele some de todos os aparelhos.")) return;
+  await removeItem(sc);
+  queue.splice(qi, 1);
+  if (!queue.length) { closePlayer(); return status("Removido. Fim da fila.", "ok"); }
+  if (qi >= queue.length) qi = queue.length - 1;
+  renderPlayer();
+  status("Removido da playlist", "ok");
+};
+$("btnWatchFav").onclick = () => openPlayer(null, "fav");
 $("btnWatchNew").onclick = () => openPlayer(null, "new");
 $("btnWatchAll").onclick = () => openPlayer(null, "all");
 document.addEventListener("keydown", (e) => {

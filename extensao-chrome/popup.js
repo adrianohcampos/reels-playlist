@@ -18,6 +18,7 @@ async function save(url) {
   try {
     const r = await saveReel(url, "desktop");
     show(r.status === "saved" ? "✓ Salvo na playlist" : "Esse Reel já estava na playlist", "ok");
+    chrome.runtime.sendMessage({ type: "captureThumb", shortcode: r.shortcode }).catch(() => {});
     await refresh();
   } catch (e) {
     show(errorMessage(e), "err");

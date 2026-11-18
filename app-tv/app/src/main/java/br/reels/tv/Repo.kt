@@ -2,7 +2,9 @@ package br.reels.tv
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
+import android.util.Base64
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -24,6 +26,25 @@ import java.util.concurrent.ConcurrentHashMap
 enum class St { QUEUED, DOWNLOADING, READY, ERROR }
 
 data class UiItem(val item: Item, val state: St, val file: File?, val thumb: File?, val error: String?)
+
+/** Abas / modos de reprodução, usados na tela inicial e no player. */
+enum class Mode(val key: String, val label: String, val playLabel: String) {
+    NEW("new", "Novos", "Assistir novos"),
+    ALL("all", "Todos", "Assistir tudo"),
+    FAV("fav", "Favoritos", "Assistir favoritos"),
+    SEEN("seen", "Vistos", "Rever vistos");
+
+    fun matches(i: Item) = when (this) {
+        NEW -> !i.watched
+        ALL -> true
+        FAV -> i.favorite
+        SEEN -> i.watched
+    }
+
+    companion object {
+        fun of(key: String?) = values().firstOrNull { it.key == key } ?: NEW
+    }
+}
 
 /**
  * Estado central do app: lista vinda do Firestore + downloads locais feitos com yt-dlp.
@@ -48,6 +69,11 @@ object Repo {
     @Volatile private var downloading: String? = null
     private var worker: Job? = null
     private val ytReady = CompletableDeferred<Boolean>()
+
+    // Capas: quais já procuramos no Firebase nesta sessão e quais já existem lá
+    private val thumbTried = ConcurrentHashMap.newKeySet<String>()
+    private val thumbRemote = ConcurrentHashMap.newKeySet<String>()
+    private var thumbJob: Job? = null
 
     val configured get() = BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && BuildConfig.FIREBASE_API_KEY.isNotEmpty()
     private val prefs get() = app.getSharedPreferences("cfg", Context.MODE_PRIVATE)
@@ -100,6 +126,8 @@ object Repo {
         if (removeDevice && code != null) scope.launch { fs.deleteDevice(code, deviceId) }
         prefs.edit().remove("code").remove("lastBeat").apply()
         remote = emptyList()
+        thumbTried.clear()
+        thumbRemote.clear()
         videoDir.listFiles()?.forEach { it.delete() }
         rebuild()
     }
@@ -159,6 +187,49 @@ object Repo {
         cleanup()
         rebuild()
         ensureWorker()
+        fetchRemoteThumbs(code)
+    }
+
+    /**
+     * Baixa do Firebase as capas que esta TV ainda não tem (geradas pela extensão ou por outra TV).
+     * Assim os cards já aparecem com imagem antes mesmo de o vídeo ser baixado.
+     */
+    private fun fetchRemoteThumbs(code: String) {
+        if (thumbJob?.isActive == true) return
+        thumbJob = scope.launch {
+            var changed = 0
+            for (it in remote.toList()) {
+                val sc = it.shortcode
+                if (thumbFile(sc).exists() || !thumbTried.add(sc)) continue
+                val b64 = runCatching { fs.getThumb(code, sc) }.getOrNull() ?: continue
+                thumbRemote.add(sc)
+                runCatching { thumbFile(sc).writeBytes(Base64.decode(b64, Base64.DEFAULT)) }
+                if (++changed % 6 == 0) rebuild()
+            }
+            if (changed > 0) rebuild()
+        }
+    }
+
+    /** Envia a capa gerada aqui para o Firebase (se ainda não existir lá). */
+    private fun uploadThumb(sc: String) {
+        val code = playlistCode ?: return
+        if (thumbRemote.contains(sc)) return
+        val local = thumbFile(sc).takeIf { it.exists() } ?: return
+        try {
+            if (!thumbTried.contains(sc) && fs.getThumb(code, sc) != null) {
+                thumbRemote.add(sc); thumbTried.add(sc); return
+            }
+            val bmp = BitmapFactory.decodeFile(local.absolutePath) ?: return
+            val w = 240
+            val h = (bmp.height * w.toFloat() / bmp.width).toInt().coerceAtLeast(1)
+            val bytes = java.io.ByteArrayOutputStream().use { out ->
+                Bitmap.createScaledBitmap(bmp, w, h, true).compress(Bitmap.CompressFormat.JPEG, 70, out)
+                out.toByteArray()
+            }
+            fs.putThumb(code, sc, Base64.encodeToString(bytes, Base64.NO_WRAP))
+            thumbRemote.add(sc); thumbTried.add(sc)
+        } catch (_: Throwable) {
+        }
     }
 
     private fun videoFile(sc: String) = File(videoDir, "$sc.mp4")
@@ -184,14 +255,12 @@ object Repo {
         videoDir.listFiles()?.forEach { f ->
             if (f.nameWithoutExtension !in known) f.delete()
         }
-        // Se passou do limite, apaga os já assistidos mais antigos
+        // Se passou do limite, apaga os vídeos já assistidos mais antigos
+        // (favoritos nunca são apagados; as capas ficam, porque são pequenas)
         var count = videoDir.listFiles { f -> f.extension == "mp4" }?.size ?: 0
-        for (it in remote.filter { r -> r.watched }) {
+        for (it in remote.filter { r -> r.watched && !r.favorite }) {
             if (count <= MAX_FILES) break
-            if (videoFile(it.shortcode).delete()) {
-                thumbFile(it.shortcode).delete()
-                count--
-            }
+            if (videoFile(it.shortcode).delete()) count--
         }
     }
 
@@ -247,7 +316,9 @@ object Repo {
             } ?: throw RuntimeException("o yt-dlp não gerou nenhum arquivo")
             val dest = videoFile(sc)
             file.copyTo(File(videoDir, "$sc.part"), overwrite = true).renameTo(dest)
-            makeThumb(dest, thumbFile(sc))
+            // Gera a capa a partir do vídeo, a menos que já tenha vindo uma (melhor) do Firebase
+            if (!thumbFile(sc).exists()) makeThumb(dest, thumbFile(sc))
+            uploadThumb(sc)
 
             val uploader = resp.out.trim().lines().lastOrNull()?.trim()
             if (!uploader.isNullOrBlank() && uploader != "NA" && item.title == null) {
@@ -294,11 +365,27 @@ object Repo {
         }
     }
 
+    fun toggleFavorite(sc: String): Boolean {
+        val current = remote.firstOrNull { it.shortcode == sc } ?: return false
+        val fav = !current.favorite
+        remote = remote.map { if (it.shortcode == sc) it.copy(favorite = fav) else it }
+        rebuild()
+        scope.launch { playlistCode?.let { code -> runCatching { fs.setFavorite(code, sc, fav) } } }
+        return fav
+    }
+
+    fun item(sc: String?): Item? = remote.firstOrNull { it.shortcode == sc }
+
     fun remove(sc: String) {
         remote = remote.filterNot { it.shortcode == sc }
         videoFile(sc).delete()
         thumbFile(sc).delete()
         rebuild()
-        scope.launch { playlistCode?.let { code -> runCatching { fs.deleteItem(code, sc) } } }
+        scope.launch {
+            playlistCode?.let { code ->
+                runCatching { fs.deleteItem(code, sc) }
+                fs.deleteThumb(code, sc)
+            }
+        }
     }
 }
