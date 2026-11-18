@@ -59,6 +59,16 @@ class MainActivity : Activity() {
                 findViewById<TextView>(R.id.status).text = statusLine(items, st)
             }
         }
+        // Esta TV foi removida por outro aparelho → volta para a tela de pareamento
+        ui.launch {
+            Repo.revokedEvent.collect { n ->
+                if (n > 0) {
+                    pollJob?.cancel()
+                    Toast.makeText(this@MainActivity, "Esta TV foi removida da playlist.", Toast.LENGTH_LONG).show()
+                    showPairing()
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -106,7 +116,8 @@ class MainActivity : Activity() {
         pollJob = ui.launch {
             while (isActive) {
                 Repo.refresh()
-                delay(60_000)
+                // 5 min: cada atualização lê todos os itens, e o plano grátis do Firestore tem limite diário de leituras
+                delay(5 * 60_000)
             }
         }
         findViewById<Button>(R.id.btnNew).requestFocus()

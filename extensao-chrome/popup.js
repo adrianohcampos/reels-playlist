@@ -1,4 +1,4 @@
-import { saveReel, listRecent, deleteReel, parseReel, getConfig, errorMessage } from "./lib.js";
+import { saveReel, listRecent, deleteReel, parseReel, getConfig, errorMessage, heartbeat } from "./lib.js";
 
 const $status = document.getElementById("status");
 const $recent = document.getElementById("recent");
@@ -63,6 +63,11 @@ document.getElementById("manual").onsubmit = (e) => {
 (async () => {
   if (!(await getConfig())) {
     show("Configure a extensão primeiro (clique em ⚙️).", "err");
+    $recent.innerHTML = "";
+    return;
+  }
+  if (!(await heartbeat())) {
+    show("Este Chrome foi removido da playlist por outro aparelho. Configure de novo em ⚙️.", "err");
     $recent.innerHTML = "";
     return;
   }

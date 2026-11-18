@@ -94,17 +94,61 @@ object Repo {
         }
     }
 
-    fun disconnect() {
-        prefs.edit().remove("code").apply()
+    /** Sai da playlist. Se [removeDevice], também tira esta TV da lista de aparelhos. */
+    fun disconnect(removeDevice: Boolean = true) {
+        val code = playlistCode
+        if (removeDevice && code != null) scope.launch { fs.deleteDevice(code, deviceId) }
+        prefs.edit().remove("code").remove("lastBeat").apply()
         remote = emptyList()
         videoDir.listFiles()?.forEach { it.delete() }
         rebuild()
+    }
+
+    // ---------- Aparelhos ----------
+
+    /** Incrementa quando esta TV é removida por outro aparelho (a tela volta ao pareamento). */
+    val revokedEvent = MutableStateFlow(0)
+
+    private val deviceId: String
+        get() = prefs.getString("deviceId", null) ?: run {
+            val chars = "abcdefghijkmnopqrstuvwxyz0123456789"
+            val rnd = SecureRandom()
+            val id = (1..20).map { chars[rnd.nextInt(chars.length)] }.joinToString("")
+            prefs.edit().putString("deviceId", id).apply()
+            id
+        }
+
+    private val deviceName: String
+        get() {
+            val maker = android.os.Build.MANUFACTURER ?: ""
+            if (maker.equals("Amazon", ignoreCase = true)) return "Fire TV"
+            val model = android.os.Build.MODEL ?: "TV"
+            val full = if (model.startsWith(maker, ignoreCase = true)) model else "$maker $model"
+            return full.trim().replaceFirstChar { it.uppercase() }.take(60)
+        }
+
+    /** Retorna false se esta TV foi removida. Faz no máximo uma chamada a cada 10 min. */
+    private fun heartbeat(code: String, force: Boolean): Boolean {
+        val last = prefs.getLong("lastBeat", 0L)
+        if (!force && System.currentTimeMillis() - last < 10 * 60_000) return true
+        return try {
+            val ok = fs.heartbeat(code, deviceId, deviceName)
+            if (ok) prefs.edit().putLong("lastBeat", System.currentTimeMillis()).apply()
+            ok
+        } catch (_: Throwable) {
+            true // sem rede: tenta de novo depois
+        }
     }
 
     // ---------- Sincronização ----------
 
     suspend fun refresh(retryErrors: Boolean = false) = withContext(Dispatchers.IO) {
         val code = playlistCode ?: return@withContext
+        if (!heartbeat(code, force = retryErrors)) {
+            disconnect(removeDevice = false)
+            revokedEvent.value = revokedEvent.value + 1
+            return@withContext
+        }
         if (retryErrors) errors.clear()
         try {
             remote = fs.listItems(code).sortedBy { it.addedAt }

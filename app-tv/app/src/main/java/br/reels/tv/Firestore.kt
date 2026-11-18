@@ -93,4 +93,43 @@ class Firestore(projectId: String, private val apiKey: String) {
     fun deletePairing(pin: String) {
         runCatching { call(Request.Builder().url("$root/pairing/$pin?key=$apiKey").delete().build()) }
     }
+
+    // ---------- Aparelhos ----------
+
+    private fun nowTs(): JSONObject {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+        fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        return JSONObject().put("timestampValue", fmt.format(java.util.Date()))
+    }
+
+    /**
+     * Registra/atualiza esta TV em playlists/{code}/devices/{id}.
+     * Retorna false se outro aparelho marcou esta TV como removida.
+     */
+    fun heartbeat(code: String, id: String, name: String): Boolean {
+        val url = "$root/playlists/$code/devices/$id?key=$apiKey"
+        val existing = call(Request.Builder().url(url).build())
+        if (existing != null) {
+            val f = JSONObject(existing).optJSONObject("fields")
+            if (f?.bool("revoked") == true) {
+                runCatching { call(Request.Builder().url(url).delete().build()) }
+                return false
+            }
+            val body = JSONObject().put("fields", JSONObject().put("lastSeen", nowTs())).toString()
+            call(Request.Builder().url("$url&updateMask.fieldPaths=lastSeen").patch(body.toRequestBody(jsonType)).build())
+        } else {
+            val fields = JSONObject()
+                .put("name", JSONObject().put("stringValue", name))
+                .put("type", JSONObject().put("stringValue", "tv"))
+                .put("pairedAt", nowTs())
+                .put("lastSeen", nowTs())
+                .put("revoked", JSONObject().put("booleanValue", false))
+            call(Request.Builder().url(url).patch(JSONObject().put("fields", fields).toString().toRequestBody(jsonType)).build())
+        }
+        return true
+    }
+
+    fun deleteDevice(code: String, id: String) {
+        runCatching { call(Request.Builder().url("$root/playlists/$code/devices/$id?key=$apiKey").delete().build()) }
+    }
 }

@@ -1,4 +1,4 @@
-import { generateCode, listRecent, errorMessage, pairTv } from "./lib.js";
+import { generateCode, listRecent, errorMessage, pairTv, heartbeat } from "./lib.js";
 
 const ids = ["projectId", "apiKey", "playlistCode"];
 const $ = (id) => document.getElementById(id);
@@ -41,6 +41,7 @@ $("test").onclick = async () => {
   msg("Testando…");
   try {
     const items = await listRecent(1);
+    await heartbeat(true);
     msg(`✓ Conectado! A playlist tem ${items.length ? "itens" : "0 itens por enquanto"}.`, "ok");
   } catch (e) {
     msg(errorMessage(e), "err");

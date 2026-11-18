@@ -42,7 +42,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:lineSpacingExtra="6dp"
-            android:text="No computador: ícone da extensão Reels Playlist → ⚙️ Configurações\n→ “Conectar uma TV” → digite o código acima.\n\nEsta tela continua sozinha assim que você conectar."
+            android:text="No celular: app Reels Playlist → Aparelhos → “Conectar novo aparelho”\nou no Chrome: extensão Reels Playlist → ⚙️ → “Conectar uma TV ou celular”\n→ digite o código acima.\n\nEsta tela continua sozinha assim que você conectar."
             android:textColor="@color/muted"
             android:textSize="20sp" />
     </LinearLayout>

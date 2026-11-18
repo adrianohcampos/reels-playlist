@@ -118,6 +118,48 @@ export async function pairTv(rawPin) {
   if (!res.ok) throw new Error(`HTTP_${res.status}: ${await res.text()}`);
 }
 
+/**
+ * Registra este Chrome na lista de aparelhos (no máximo a cada 10 min).
+ * Se outro aparelho o removeu, apaga o código salvo e retorna false.
+ */
+export async function heartbeat(force = false) {
+  const cfg = await getConfig();
+  if (!cfg) return true;
+  let { deviceId, lastBeat = 0 } = await chrome.storage.local.get(["deviceId", "lastBeat"]);
+  if (!force && Date.now() - lastBeat < 10 * 60 * 1000) return true;
+  if (!deviceId) {
+    deviceId = Array.from(crypto.getRandomValues(new Uint8Array(20)), (b) => "abcdefghijkmnopqrstuvwxyz0123456789"[b % 35]).join("");
+    await chrome.storage.local.set({ deviceId });
+  }
+  const url = `${base(cfg)}/devices/${deviceId}`;
+  try {
+    const res = await fetch(`${url}?key=${cfg.apiKey}`);
+    const now = { timestampValue: new Date().toISOString() };
+    if (res.ok) {
+      const f = (await res.json()).fields || {};
+      if (f.revoked?.booleanValue) {
+        await fetch(`${url}?key=${cfg.apiKey}`, { method: "DELETE" });
+        await chrome.storage.sync.remove("playlistCode");
+        return false;
+      }
+      await fetch(`${url}?updateMask.fieldPaths=lastSeen&key=${cfg.apiKey}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { lastSeen: now } }),
+      });
+    } else if (res.status === 404) {
+      await fetch(`${url}?key=${cfg.apiKey}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: {
+          name: { stringValue: "Chrome (computador)" }, type: { stringValue: "desktop" },
+          pairedAt: now, lastSeen: now, revoked: { booleanValue: false },
+        } }),
+      });
+    } else return true;
+    await chrome.storage.local.set({ lastBeat: Date.now() });
+  } catch {}
+  return true;
+}
+
 /** Gera um código secreto de playlist (32 caracteres). */
 export function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
