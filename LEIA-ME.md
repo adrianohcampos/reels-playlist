@@ -109,5 +109,42 @@ playlists/{codigoSecreto}/items/{shortcode}   url, shortcode, addedAt, watched, 
 pairing/{PIN}                                 temporário, apagado assim que a TV conecta
 ```
 
-## Próxima parte
-- **Parte 3:** PWA para o celular Android, com a opção "Compartilhar" direto do app do Instagram.
+---
+
+## Parte 3: app do celular (Android)
+
+Um app web instalável, hospedado de graça no **GitHub Pages**, no mesmo repositório.
+Depois de instalado, ele aparece no **Compartilhar** do Instagram.
+
+### 3.1 Suba os arquivos novos pro GitHub (5 min)
+No seu repositório `reels-playlist`:
+1. Clique em **Add file → Upload files**, arraste a pasta **`pwa`** inteira e também a pasta
+   **`extensao-chrome`** (que foi atualizada). Depois clique em **Commit changes**.
+2. Crie o workflow de publicação: **Add file → Create new file** com o nome
+   `.github/workflows/pages.yml`. Cole o conteúdo do arquivo e clique em **Commit**.
+   (Se você conseguiu arrastar a pasta `.github` inteira, ele já subiu junto.)
+3. Abra **Settings → Pages** e, em *Build and deployment → Source*, escolha **GitHub Actions**.
+4. Vá na aba **Actions**, escolha **Publicar app do celular** e clique em **Run workflow** (se ele não rodou sozinho).
+   Em uns 2 minutos o app fica no ar em:
+   ```
+   https://SEU_USUARIO.github.io/reels-playlist/
+   ```
+   > O `pwa/config.js` do repositório está vazio de propósito. Na publicação, ele é preenchido
+   > com as mesmas variáveis `FIREBASE_PROJECT_ID` e `FIREBASE_API_KEY` que você já criou.
+
+Também atualize a extensão no Chrome: em `chrome://extensions`, clique em ⟳ no card dela.
+
+### 3.2 Instale no celular
+1. No **Chrome do Android**, abra o link acima.
+2. Toque no menu **⋮** e escolha **Instalar app** (ou **Adicionar à tela inicial → Instalar**).
+   ⚠️ Precisa ser *instalado*. Só assim ele aparece no menu "Compartilhar".
+3. Abra o **Reels Playlist** pela tela inicial. Ele mostra um código de 8 caracteres.
+4. No computador, vá na extensão → ⚙️ → **Conectar uma TV ou celular**, digite o código e clique em **Conectar**.
+
+### 3.3 Usando
+- **No Instagram:** toque no ✈️ (Compartilhar) do Reel, escolha **Compartilhar em…** ou **Mais** e depois **Reels Playlist**.
+  O app abre, mostra "✓ Salvo na playlist" e tenta fechar sozinho. Se não fechar, é só voltar.
+  > Dica: na lista de compartilhamento do Android, segure o ícone do Reels Playlist e **fixe** ele no topo.
+- **Link copiado:** abra o app e toque em **📋 Colar**. Se for um link de Reel, ele já salva.
+- O app mostra os últimos 20 salvos (✔ visto / novo) e deixa remover.
+- ⚙️ → **Desconectar** tira o celular da playlist sem apagar nada.
