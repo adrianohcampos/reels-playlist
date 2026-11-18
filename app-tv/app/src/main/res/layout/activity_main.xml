@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="40dp">
+
+    <!-- Tela de pareamento -->
+    <LinearLayout
+        android:id="@+id/pairing"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Conectar esta TV à sua playlist"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/pin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="28dp"
+            android:background="@drawable/focus_bg"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.15"
+            android:paddingStart="40dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="40dp"
+            android:paddingBottom="16dp"
+            android:textColor="@color/accent"
+            android:textSize="76sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:lineSpacingExtra="6dp"
+            android:text="No computador: ícone da extensão Reels Playlist → ⚙️ Configurações\n→ “Conectar uma TV” → digite o código acima.\n\nEsta tela continua sozinha assim que você conectar."
+            android:textColor="@color/muted"
+            android:textSize="20sp" />
+    </LinearLayout>
+
+    <!-- Tela principal -->
+    <LinearLayout
+        android:id="@+id/main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Reels TV"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+
+            <Button android:id="@+id/btnNew" style="@style/TvButton" android:text="▶  Assistir novos" />
+            <Button android:id="@+id/btnAll" style="@style/TvButton" android:text="▶  Assistir tudo" />
+            <Button android:id="@+id/btnRefresh" style="@style/TvButton" android:text="Atualizar" />
+            <Button android:id="@+id/btnSettings" style="@style/TvButton" android:text="Ajustes" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="14dp"
+            android:textColor="@color/muted"
+            android:textSize="17sp" />
+
+        <TextView
+            android:id="@+id/empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="Playlist vazia.\nSalve alguns Reels pela extensão do Chrome ou pelo celular."
+            android:textColor="@color/muted"
+            android:textSize="22sp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="8dp" />
+    </LinearLayout>
+</FrameLayout>

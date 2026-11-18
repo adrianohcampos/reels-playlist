@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Segurança por "código secreto": só quem conhece o código da playlist
+// (32 caracteres aleatórios) consegue ler ou escrever nela.
+// Ninguém consegue listar as playlists existentes.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /playlists/{code}/items/{itemId} {
+      function validCode() { return code.size() >= 24; }
+
+      allow read, delete: if validCode();
+
+      allow create: if validCode()
+        && request.resource.data.keys().hasOnly(['url', 'shortcode', 'addedAt', 'watched', 'source', 'title'])
+        && request.resource.data.shortcode == itemId
+        && request.resource.data.url == 'https://www.instagram.com/reel/' + itemId + '/'
+        && request.resource.data.watched is bool
+        && request.resource.data.addedAt is timestamp;
+
+      // A TV só pode marcar como assistido / preencher o título
+      allow update: if validCode()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['watched', 'title']);
+    }
+
+    // Pareamento da TV: a extensão grava pairing/{PIN de 8 letras} com o código da playlist,
+    // a TV lê (precisa saber o PIN exato, não dá pra listar) e apaga logo em seguida.
+    match /pairing/{pin} {
+      allow get, delete: if pin.size() == 8;
+      allow create: if pin.size() == 8
+        && request.resource.data.keys().hasOnly(['playlistCode', 'createdAt'])
+        && request.resource.data.playlistCode is string
+        && request.resource.data.playlistCode.size() >= 24;
+    }
+
+    // Qualquer outra coisa: bloqueado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

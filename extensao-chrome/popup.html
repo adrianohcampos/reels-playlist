@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="popup">
+  <header>
+    <strong>🎬 Reels Playlist</strong>
+    <a href="#" id="opts" title="Configurações">⚙️</a>
+  </header>
+
+  <div id="status" class="status">…</div>
+
+  <form id="manual">
+    <input id="link" type="url" placeholder="Cole um link de Reel" />
+    <button type="submit">Salvar</button>
+  </form>
+
+  <h3>Últimos salvos</h3>
+  <ul id="recent"><li class="muted">Carregando…</li></ul>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Reels Playlist — Configurações</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="options">
+  <h1>🎬 Reels Playlist — Configurações</h1>
+  <p class="muted">Dados do seu projeto Firebase (veja o LEIA-ME para criar um, é grátis).</p>
+
+  <label>Project ID
+    <input id="projectId" placeholder="ex.: reels-playlist-1234" />
+  </label>
+  <label>Web API key
+    <input id="apiKey" placeholder="AIza…" />
+  </label>
+  <label>Código secreto da playlist
+    <div class="row">
+      <input id="playlistCode" placeholder="Gere um novo ou cole o que já usa" />
+      <button id="gen" type="button">Gerar</button>
+    </div>
+  </label>
+  <p class="muted">Esse código funciona como a "senha" da playlist. Use o <b>mesmo</b> código no celular e na TV.
+    Não compartilhe com ninguém.</p>
+
+  <div class="row">
+    <button id="save" type="button">Salvar</button>
+    <button id="test" type="button">Testar conexão</button>
+  </div>
+  <div id="msg" class="status"></div>
+
+  <h2 style="margin-top:36px">📺 Conectar uma TV</h2>
+  <p class="muted">Abra o app <b>Reels TV</b> na TV. Ele mostra um código de 8 caracteres. Digite o código aqui.</p>
+  <div class="row">
+    <input id="pin" placeholder="ABCD-1234" maxlength="9" style="text-transform:uppercase;font-family:monospace;font-size:18px" />
+    <button id="pair" type="button">Conectar</button>
+  </div>
+  <div id="pairMsg" class="status"></div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
