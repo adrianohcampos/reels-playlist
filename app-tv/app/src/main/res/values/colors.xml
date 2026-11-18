@@ -8,4 +8,6 @@
     <color name="text">#FFFFFF</color>
     <color name="muted">#9A9AAB</color>
     <color name="scrim">#B3000000</color>
+    <!-- Mantida por compatibilidade com o arquivo antigo drawable/focus_bg.xml, se ele ainda estiver no repositório -->
+    <color name="card">#1C1C24</color>
 </resources>
